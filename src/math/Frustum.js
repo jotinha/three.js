@@ -76,34 +76,76 @@ THREE.Frustum.prototype = {
 
 		var center = new THREE.Vector3();
 
+		var localFrustum = new THREE.Frustum();
+
 		return function ( object ) {
 
 			// this method is expanded inlined for performance reasons.
 
 			var geometry = object.geometry;
 			var matrix = object.matrixWorld;
+			
+			if ( object.frustumCulled === THREE.NoFrustumCull) {
 
-			if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
+				return false;
+			
+			} else if ( object.frustumCulled === THREE.BoxFrustumCull) {
 
-			var negRadius = - geometry.boundingSphere.radius * matrix.getMaxScaleOnAxis();
+				if ( geometry.boundingBox === null) {
+					throw 'boundingBox must have been computed to use object.frustumCulled'
+				}
 
-			center.getPositionFromMatrix( matrix );
+				// use object-oriented frustum culling:
+				// Ref: http://www.lighthouse3d.com/tutorials/view-frustum-culling/geometric-approach-testing-boxes-ii/
+				
+				// first convert frustum to local obj coordinates (don't use worldToLocal because 
+				// it requires computing the inverse)
 
-			var planes = this.planes;
+				var te = matrix.elements;
 
-			for ( var i = 0; i < 6; i ++ ) {
+				for (var i = 0; i < 6; i ++ ) {
+					var o = this.planes[0].normal;
+					var n = localFrustum.planes[0].normal;
 
-				var distance = planes[ i ].distanceToPoint( center );
+					n.x = o.x*te[0] + o.y*te[1] + o.z*te[2];
+					n.y = o.x*te[4] + o.y*te[5] + o.z*te[6];
+					n.z = o.x*te[8] + o.y*te[9] + o.z*te[10];
+					//n.normalize();
 
-				if ( distance < negRadius ) {
+					//oobb axis should be normalized??
 
-					return false;
+					//could also use n.copy(o); n.applyMatrix4(matrix.transpose())
+				}
+
+				// now the box is axis aligned with respect to the new frustum
+
+				return localFrustum.intersectsBox(geometry.boundingBox);
+
+
+			} else if () object.frustumCulled === THREE.SphereFrustumCull ) {
+
+				if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
+
+				var negRadius = - geometry.boundingSphere.radius * matrix.getMaxScaleOnAxis();
+
+				center.getPositionFromMatrix( matrix );
+
+				var planes = this.planes;
+
+				for ( var i = 0; i < 6; i ++ ) {
+
+					var distance = planes[ i ].distanceToPoint( center );
+
+					if ( distance < negRadius ) {
+
+						return false;
+
+					}
 
 				}
 
+				return true;
 			}
-
-			return true;
 
 		};
 
